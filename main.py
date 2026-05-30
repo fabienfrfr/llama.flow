@@ -38,7 +38,7 @@ class LlamaFlow:
             if self.token_count >= self.save_interval:
                 state = self.llm.save_state()
                 with open(self.state_path, "wb") as f:
-                    f.write(state.data)
+                    f.write(state) 
                 self.token_count = 0
                 print(f"State persisted to {self.state_path}")
             
@@ -56,14 +56,22 @@ async def api_generate(query: Query):
     return {"response": flow.generate(query.prompt)}
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="LlamaFlow Inference API")
+    parser = argparse.ArgumentParser(description="LlamaFlow Inference")
     parser.add_argument("--repo", default="unsloth/Qwen3.5-2B-GGUF", help="HF model repo")
     parser.add_argument("--file", default="Qwen3.5-2B-Q4_K_M.gguf", help="GGUF filename")
     parser.add_argument("--port", type=int, default=8000, help="API port")
+    parser.add_argument("--cli", action="store_true", help="Run in CLI mode instead of API")
     args = parser.parse_args()
 
-    # Initialize flow with args
     flow = LlamaFlow(args.repo, args.file, "checkpoint.bin")
     
-    # Start API server
-    uvicorn.run(app, host="0.0.0.0", port=args.port)
+    if args.cli:
+        print("--- CLI Mode (Type 'quit' to exit) ---")
+        while True:
+            user_input = input("You: ")
+            if user_input.lower() == "quit":
+                break
+            print(f"LlamaFlow: {flow.generate(user_input)}")
+    else:
+        # Start API server
+        uvicorn.run(app, host="0.0.0.0", port=args.port)
