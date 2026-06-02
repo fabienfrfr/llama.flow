@@ -1,31 +1,28 @@
-# Use the official uv image
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+FROM debian:bookworm-slim
 
-# Set working directory
+# Install core system tools (Python & basics for scripts)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv curl jq && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-# Disable uv cache for the final image to keep it small
-ENV UV_LINK_MODE=copy
+# Copy installation script and project files
+COPY install.sh pyproject.toml uv.lock* main.py ./
 
-# Install dependencies (leverage uv cache for speed)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-dev
+# Install uv (standard location for the build process)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
-# Copy source code
-COPY main.py .
+# Run the external installation script for llama.cpp binary & vulkan
+RUN chmod +x install.sh && ./install.sh
 
-# Create non-privileged user
-RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m appuser && \
-    chown -R appuser:appuser /app
+# Sync project dependencies
+RUN uv sync --no-dev
 
-USER appuser
+# Final environment configuration
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Expose API port
 EXPOSE 8000
-
-# Run using the venv created by uv
-ENTRYPOINT ["/app/.venv/bin/python", "main.py"]
+ENTRYPOINT ["python", "main.py"]

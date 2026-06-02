@@ -1,0 +1,10 @@
+services:
+  llama_flow:
+    build: .
+    ports:
+      - "8000:8000"
+    devices:
+      - "/dev/dri:/dev/dri"
+    volumes:
+      - ./user_states:/app/user_states
+      - ./logs:/app/logs

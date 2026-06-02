@@ -1,75 +1,63 @@
 # llama.flow
 
-LlamaFlow is an autonomous, state-aware inference engine designed to bridge the gap between simple LLM scripts and persistent, service-oriented AI applications. Built on top of `llama-cpp-python`, it provides a seamless way to run recurrent models with automatic state persistence and a production-ready API interface.
+LlamaFlow is a simple, state-aware inference proxy. It sits in front of `llama.cpp` to automatically save and restore user-specific model states, making it easier to build persistent AI applications.
 
-> **🚧 WORK IN PROGRESS** 
+**Why llama.flow?**
+
+Unlike traditional models constrained by a fixed context window (e.g., 32K tokens), **llama.flow leverages recurrent architectures (SSM, DeltaNet, etc.)** to provide **near-infinite memory** while maintaining **sharp local precision**. Using `--context-shift` in `llama.cpp`, the model keeps a **sliding window of 128–2048 tokens (KV cache)** for recent details, and the **compressed recurrent state (SSM/DeltaNet hidden state)** persists between requests via `.bin` files. The result? Your assistant remembers **entire conversations** (within the limits of latent memory compression) while staying **fast and accurate** on the latest exchanges. Perfect for long-term chatbots, autonomous agents, or continuous stream analysis.
+
 
 ## Features
 
-- **State Persistence:** Automatically saves and restores model state to prevent context loss.
-- **Thread-Safe API:** Includes a built-in FastAPI wrapper with locking mechanisms for concurrent requests.
-- **Dual-Mode Execution:** Switch easily between interactive CLI mode and headless API service mode.
-- **Production-Ready:** Containerized with Docker and optimized using `uv` for lightning-fast builds and reproducible environments.
-- **Model Agnostic:** Works with any GGUF-compatible model from the Hugging Face ecosystem.
+* **State Persistence:** Automatically saves/restores model context per user via binary snapshots.
+* **Native Performance:** Delegates actual generation to `llama-server` (C++), supporting Vulkan/GPU acceleration.
+* **Simplified API:** A clean FastAPI wrapper to handle user sessions without manual state management.
+* **Docker-Ready:** Includes a multi-stage `Dockerfile` to compile the engine and deploy the service.
 
 ## Quick Start
 
-### Prerequisites
-- Python 3.13+
-- [uv](https://github.com/astral-sh/uv) (recommended)
-- Docker (for service deployment)
+### Installation
 
-### Local Installation
 ```bash
-# Clone the repository
-git clone [https://github.com/yourusername/llama-flow](https://github.com/yourusername/llama-flow)
+git clone https://github.com/fabienfrfr/llama.flow.git
 cd llama-flow
 
-# Sync dependencies
+# Sync dependencies using uv
 uv sync
 
 ```
 
-### Running the Project
+### Running the Service
 
-**1. As a CLI Agent:**
+The proxy automatically manages the C++ server lifecycle:
 
 ```bash
-uv run main.py --cli
+uv run main.py
 
 ```
 
-**2. As an API Service:**
+Access the API docs at `http://localhost:8000/docs`.
+
+### Docker Deployment
 
 ```bash
-uv run main.py --repo "unsloth/Qwen3.5-2B-GGUF" --file "Qwen3.5-2B-Q4_K_M.gguf"
-
-```
-
-Access the interactive API documentation at: `http://localhost:8000/docs`
-
-## Docker Deployment
-
-Build and run as a persistent service:
-
-```bash
-# Build the image
+# Build the Vulkan-enabled image
 docker build -t llamaflow-service .
 
-# Run the container
+# Run the container (ensure your GPU drivers are exposed)
 docker run -d \
-  --name llama-api \
   -p 8000:8000 \
-  -v $(pwd)/checkpoint.bin:/app/checkpoint.bin \
-  --restart unless-stopped \
+  --device /dev/dri:/dev/dri \
   llamaflow-service
 
 ```
 
-## Architecture
+## How it works
 
-LlamaFlow manages the lifecycle of a language model by intercepting the token generation loop to handle state serialisation.
+1. **Orchestrator (Python):** Handles incoming requests, identifies the user, and manages `.bin` state files.
+2. **Engine (C++):** Receives the state file, performs the high-speed inference, and returns the snapshot.
+3. **Storage:** User-specific states are stored in the `user_states/` directory.
 
-## License
+---
 
-Apache 2.0
+*License: Apache 2.0*
